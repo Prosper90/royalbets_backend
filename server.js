@@ -524,8 +524,16 @@ app.post("/handle_webhook", async (req, res) => {
 
       console.log(pendingDeposit, "checking the pending deposit");
 
-      if (pendingDeposit && req.body.status !== 100) {
-        throw new Error("Deposit not complete");
+      if (pendingDeposit && req.body.status !== "100") {
+        throw new Error("This deposit has not been completed");
+      }
+
+      if (
+        req.body.status === "100" &&
+        pendingDeposit.status === "success" &&
+        pendingDeposit.address_to === req.body.address
+      ) {
+        throw new Error("This deposit has already been completed");
       }
 
       //Convert amount to Dollar
