@@ -537,8 +537,7 @@ app.post("/handle_webhook", async (req, res) => {
       }
 
       //Convert amount to Dollar
-      const amountToRecieveInDollars =
-        req.body.fiat_amount * pendingDeposit.current_price;
+      const amountToRecieveInDollars = req.body.fiat_amount;
 
       console.log(amountToRecieveInDollars, "Amount to recieve in dollars");
 
@@ -583,8 +582,7 @@ app.post("/handle_webhook", async (req, res) => {
       }
 
       //Convert amount to Dollar
-      const amountToDeductInDollars =
-        req.body.fiat_amount * pendingWithdrawal.current_price;
+      const amountToDeductInDollars = req.body.fiat_amount;
 
       console.log(amountToDeductInDollars, "amount to deduct");
       // update transaction and transfer funds to the required user
