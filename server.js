@@ -9,6 +9,8 @@ const { requireAuth } = require("./utils/authmiddleware");
 const Transaction = require("./models/Transaction");
 const User = require("./models/User");
 const jwt = require("jsonwebtoken");
+const CoinpaymentsIPNError = require("coinpayments-ipn/lib/error");
+const { verify } = require("coinpayments-ipn");
 
 const { ethers, parseUnits } = require("ethers");
 
@@ -263,7 +265,7 @@ app.post("/deposit", requireAuth, async (req, res) => {
     }
     const getAddress = await generateDepositAddressCoinPayment(asset);
 
-    await new Transaction({
+    const tx = await new Transaction({
       txtype: "deposit",
       asset: asset,
       amount: 0,
@@ -273,6 +275,8 @@ app.post("/deposit", requireAuth, async (req, res) => {
       address_to: getAddress?.address,
       owner: req.user._id,
     });
+
+    await tx.save();
 
     res
       .status(200)
@@ -308,7 +312,7 @@ app.post("/withdraw", requireAuth, async (req, res) => {
 
     await TransferCryptoCoinPayment(asset, address, amount);
 
-    await new Transaction({
+    const tx = await new Transaction({
       txtype: "withdrawal",
       asset: asset,
       amount: amount,
@@ -318,6 +322,8 @@ app.post("/withdraw", requireAuth, async (req, res) => {
       address_to: address,
       owner: req.user._id,
     });
+
+    await tx.save();
 
     res.status(200).json({ status: true, message: "withdrawal successfull" });
   } catch (error) {
@@ -488,7 +494,7 @@ app.post("/handle_webhook", async (req, res) => {
       !req.body ||
       !req.body.ipn_mode ||
       req.body.ipn_mode !== `hmac` ||
-      config.COINPAYMENT_API_MERCHANT_ID !== req.body.merchant
+      process.env.COINPAYMENT_API_MERCHANT_ID !== req.body.merchant
     ) {
       throw new Error(`Invalid request`);
     }
@@ -499,7 +505,7 @@ app.post("/handle_webhook", async (req, res) => {
     try {
       isValid = verify(
         req.get(`HMAC`),
-        config.COINPAYMENT_API__IPN_SECRET,
+        process.env.COINPAYMENT_API__IPN_SECRET,
         req.body
       );
     } catch (verifyError) {
@@ -610,7 +616,8 @@ app.post("/handle_webhook", async (req, res) => {
       message: message,
     });
   } catch (error) {
-    res.status(500).json({ error: "Internal server error" });
+    console.log(error, "error in, error out");
+    res.status(500).json({ error: "Internal server error jjsks" });
   }
 });
 
