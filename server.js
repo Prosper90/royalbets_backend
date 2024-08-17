@@ -524,7 +524,7 @@ app.post("/handle_webhook", async (req, res) => {
         req.body.fiat_amount * pendingDeposit.current_price;
 
       // update transaction and transfer funds to the required user
-      const emitData = await Transaction.findOneAndUpdate(
+      await Transaction.findOneAndUpdate(
         { _id: pendingDeposit._id },
         { $set: { status: "success", amount: amountToRecieveInDollars } },
         { new: true }
@@ -546,7 +546,10 @@ app.post("/handle_webhook", async (req, res) => {
       user.balance = updateBalance;
       await user.save();
 
-      io.emit(`DepositSuccess${pendingDeposit.address_to}`, emitData);
+      io.emit(`DepositSuccess${pendingDeposit.address_to}`, {
+        status: "success",
+        userBalance: user.balance,
+      });
       message = "Crypto deposit caught and updated";
     } else if (req.body.ipn_type === "withdrawal") {
       const pendingWithdrawal = await Transaction.findOne({
@@ -563,7 +566,7 @@ app.post("/handle_webhook", async (req, res) => {
         req.body.fiat_amount * pendingWithdrawal.current_price;
 
       // update transaction and transfer funds to the required user
-      const emitData = await Transaction.findOneAndUpdate(
+      await Transaction.findOneAndUpdate(
         { _id: pendingWithdrawal._id },
         { $set: { status: "success", amount: amountToDeductInDollars } },
         { new: true }
@@ -586,7 +589,10 @@ app.post("/handle_webhook", async (req, res) => {
       user.balance = updateBalance;
       await user.save();
 
-      io.emit(`WithdrawalSuccess${pendingWithdrawal.address_to}`, emitData);
+      io.emit(`WithdrawalSuccess${pendingWithdrawal.address_to}`, {
+        status: "success",
+        userBalance: user.balance,
+      });
       message = "Crypto Withdrawal caught and updated";
     }
 
