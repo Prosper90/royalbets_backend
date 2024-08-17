@@ -493,6 +493,7 @@ app.post("/handle_webhook", async (req, res) => {
       throw new Error(`Invalid request`);
     }
 
+    console.log(req.body, "I am checking if I recieved the wehook");
     let isValid;
 
     try {
@@ -515,6 +516,8 @@ app.post("/handle_webhook", async (req, res) => {
         address_to: req.body.address,
       });
 
+      console.log(pendingDeposit, "checking the pending deposit");
+
       if (pendingDeposit && req.body.status !== 100) {
         throw new Error("Deposit not complete");
       }
@@ -522,6 +525,8 @@ app.post("/handle_webhook", async (req, res) => {
       //Convert amount to Dollar
       const amountToRecieveInDollars =
         req.body.fiat_amount * pendingDeposit.current_price;
+
+      console.log(amountToRecieveInDollars, "Amount to recieve in dollars");
 
       // update transaction and transfer funds to the required user
       await Transaction.findOneAndUpdate(
@@ -541,6 +546,7 @@ app.post("/handle_webhook", async (req, res) => {
 
       let user = await User.findById({ _id: pendingDeposit.owner });
 
+      console.log(user, "user checking if its correct");
       const updateBalance = safeRound(user.balance) + amountToRecieveInDollars;
       // console.log(updateBalance, "checking update balanced");
       user.balance = updateBalance;
@@ -557,6 +563,7 @@ app.post("/handle_webhook", async (req, res) => {
         address_to: req.body.address,
       });
 
+      console.log(pendingWithdrawal, "checking for pending withdrawal");
       if (pendingWithdrawal && req.body.status !== 100) {
         throw new Error("Deposit not complete");
       }
@@ -565,6 +572,7 @@ app.post("/handle_webhook", async (req, res) => {
       const amountToDeductInDollars =
         req.body.fiat_amount * pendingWithdrawal.current_price;
 
+      console.log(amountToDeductInDollars, "amount to deduct");
       // update transaction and transfer funds to the required user
       await Transaction.findOneAndUpdate(
         { _id: pendingWithdrawal._id },
@@ -582,6 +590,7 @@ app.post("/handle_webhook", async (req, res) => {
       // );
       let user = await User.findById({ _id: pendingDeposit.owner });
 
+      console.log(user, "checking if the user is correct");
       const updateBalance = safeRound(
         parseFloat(user.balance) - amountToDeductInDollars
       );
