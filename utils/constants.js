@@ -57,7 +57,7 @@ const isValidTronAddress = (address) => {
 };
 
 // Constants
-const minimumBet = 10;
+const minimumBet = 0.2;
 const houseChargePercentage = 2;
 const referralCommissionPercentage = 2;
 const feeReceiverPercentage = 2;
