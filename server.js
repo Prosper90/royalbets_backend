@@ -338,9 +338,8 @@ app.post("/place_bet", requireAuth, async (req, res) => {
       req.body;
     let user = req.user; // Assuming requireAuth middleware attaches user to req
 
-    const safeBetAmount = safeRound(betAmount);
-    const minimumBetAmount = safeRound(minimumBet);
-
+    const safeBetAmount = parseFloat(betAmount);
+    const minimumBetAmount = minimumBet;
     if (safeBetAmount < minimumBetAmount) {
       return res
         .status(400)
@@ -353,18 +352,21 @@ app.post("/place_bet", requireAuth, async (req, res) => {
         .json({ status: false, message: "Insufficient balance" });
     }
 
+    const houseCharge = (safeBetAmount * houseChargePercentage) / 100;
     // Deduct bet amount from user's balance
-    user.balance = safeRound(parseFloat(user.balance) - safeBetAmount);
-    await user.save();
-
-    // user = await User.findOneAndUpdate(
-    //   { _id: req.user._id },
-    //   { $inc: { balance: -(safeBetAmount * 100) } },
-    //   { new: true }
+    // console.log(
+    //   user.balance,
+    //   typeof user.balance,
+    //   safeBetAmount,
+    //   parseFloat(user.balance) - safeBetAmount,
+    //   houseCharge,
+    //   typeof safeBetAmount,
+    //   typeof houseCharge,
+    //   safeBetAmount + houseCharge,
+    //   "just checking why things are not working"
     // );
-    const houseCharge = safeRound(
-      (safeBetAmount * houseChargePercentage) / 100
-    );
+    user.balance = parseFloat(user.balance) - (safeBetAmount + houseCharge);
+    await user.save();
 
     // Simulate VRF by generating a random number
     const randomNumber = getRandomNumber(100);
@@ -394,7 +396,12 @@ app.post("/place_bet", requireAuth, async (req, res) => {
       const feeReceiverAmount = safeRound(
         (payout * feeReceiverPercentage) / 100
       );
-      amountWon = safeRound(payout - feeReceiverAmount - referralCommission);
+      // Transfer to house (fee taker)
+      console.log(`Transferring ${houseCharge} to house`);
+      amountWon =
+        payout -
+        safeRound(feeReceiverAmount - referralCommission) -
+        houseCharge;
 
       // Simulate transfers
       if (referral !== "0x0000000000000000000000000000000000000000") {
@@ -421,19 +428,9 @@ app.post("/place_bet", requireAuth, async (req, res) => {
           value: valTr,
         });
       }
-      // Transfer to house (fee taker)
-      console.log(`Transferring ${houseCharge} to house`);
 
       // Update user's balance with winnings
-      const updateBalance = safeRound(user.balance) + amountWon;
-      console.log(updateBalance, "checking update balanced");
-      // user.balance = updateBalance;
-      // await user.save();
-      // user = await User.findOneAndUpdate(
-      //   { _id: req.user._id },
-      //   { $inc: { balance: updateBalance * 100 } },
-      //   { new: true }
-      // );
+      const updateBalance = parseFloat(user.balance) + amountWon;
       user.balance = updateBalance;
       await user.save();
     } else {
@@ -472,17 +469,25 @@ app.post("/place_bet", requireAuth, async (req, res) => {
     console.error("Error in place-bet route:", error);
 
     // Attempt to refund user
+    let user;
     try {
-      const user = req.user;
-      const refundAmount = safeRound(req.body.betAmount);
-      user.balance = safeRound(user.balance + refundAmount);
+      user = req.user;
+      const refundAmount = req.body.betAmount;
+      user.balance = user.balance + refundAmount;
       await user.save();
-      console.log(`Refunded ${refundAmount} to user ${user.id}`);
+      console.log(`Refunded ${refundAmount} to user ${user._id}`);
     } catch (refundError) {
       console.error("Error while attempting refund:", refundError);
     }
 
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      status: false,
+      user: {
+        username: user.username,
+        balance: user.balance,
+      },
+      message: "Internal server error",
+    });
   }
 });
 
