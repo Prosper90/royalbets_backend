@@ -34,6 +34,7 @@ const {
 const WAValidator = require("multicoin-address-validator"); // You'll need to install this package
 const { makecall } = require("./utils/makeRequest");
 const { throws } = require("assert");
+const RecentPlays = require("./models/RecentPlays");
 
 const app = express();
 const server = http.createServer(app);
@@ -86,6 +87,20 @@ app.get("/check_user/:address", async (req, res) => {
 
 app.get("/recent_plays", async (req, res) => {
   try {
+    const findRecent = await RecentPlays.find({})
+      .sort({ createdAt: -1 })
+      .limit(7);
+
+    res
+      .status(200)
+      .json({ status: true, data: findRecent, message: "Welcome to the API" });
+  } catch (error) {
+    res.status(400).json({ status: false, message: "something went wrong" });
+  }
+});
+
+app.get("/recent_plays_win", async (req, res) => {
+  try {
     const findRecent = await Casino.find({}).sort({ createdAt: -1 }).limit(7);
 
     res
@@ -93,6 +108,62 @@ app.get("/recent_plays", async (req, res) => {
       .json({ status: true, data: findRecent, message: "Welcome to the API" });
   } catch (error) {
     res.status(400).json({ status: false, message: "something went wrong" });
+  }
+});
+
+app.get("/recent_leaderboard", async (req, res) => {
+  try {
+    const findRecent = await Casino.find({}).sort({ createdAt: -1 });
+
+    res
+      .status(200)
+      .json({ status: true, data: findRecent, message: "Welcome to the API" });
+  } catch (error) {
+    res.status(400).json({ status: false, message: "something went wrong" });
+  }
+});
+
+app.post("/game_recent", async (req, res) => {
+  try {
+    const {
+      type,
+      wallet,
+      is_win,
+      amount_played,
+      payout,
+      player,
+      chain,
+      duplicate_id,
+    } = req.body;
+
+    const findDuplicate = await RecentPlays.findOne({
+      duplicate_id: duplicate_id,
+    });
+    if (findDuplicate) {
+      return res
+        .status(201)
+        .json({ status: false, message: "duplaicate data" });
+    }
+
+    let recentGame = new RecentPlays({
+      type: type,
+      wallet: wallet,
+      is_Win: is_win,
+      amount_played: amount_played,
+      payout: payout,
+      player: player,
+      chain: chain,
+      duplicate_id: duplicate_id,
+    });
+    recentGame = await recentGame.save();
+    if (recentGame)
+      return res.status(201).json({
+        status: true,
+        data: recentGame,
+        message: "data entered successfully",
+      });
+  } catch (error) {
+    console.log(error);
   }
 });
 
