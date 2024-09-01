@@ -99,21 +99,67 @@ app.get("/recent_plays", async (req, res) => {
   }
 });
 
-app.get("/recent_plays_win", async (req, res) => {
+app.get("/leader_board", async (req, res) => {
   try {
-    const findRecent = await Casino.find({}).sort({ createdAt: -1 }).limit(7);
+    const leaderboard = await Casino.aggregate([
+      {
+        $match: {
+          is_Win: true, // Only consider winning games
+        },
+      },
+      {
+        $addFields: {
+          convertedPayout: {
+            $cond: {
+              if: { $eq: ["$chain", "wallet"] },
+              then: "$payout",
+              else: { $multiply: ["$payout", "$token_price_convt"] },
+            },
+          },
+          convertedAmountPlayed: {
+            $cond: {
+              if: { $eq: ["$chain", "wallet"] },
+              then: "$amount_played",
+              else: { $multiply: ["$amount_played", "$token_price_convt"] },
+            },
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$player",
+          totalWinnings: { $sum: "$convertedPayout" },
+          totalAmountPlayed: { $sum: "$convertedAmountPlayed" },
+          gamesPlayed: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          player: "$_id",
+          totalWinnings: 1,
+          totalAmountPlayed: 1,
+          gamesPlayed: 1,
+          _id: 0,
+        },
+      },
+      {
+        $sort: { totalWinnings: -1 },
+      },
+    ]);
 
-    res
-      .status(200)
-      .json({ status: true, data: findRecent, message: "Welcome to the API" });
+    res.status(200).json({
+      status: true,
+      data: leaderboard,
+      message: "Leaderboard retrieved successfully",
+    });
   } catch (error) {
     res.status(400).json({ status: false, message: "something went wrong" });
   }
 });
 
-app.get("/recent_leaderboard", async (req, res) => {
+app.get("/recent_plays_win", async (req, res) => {
   try {
-    const findRecent = await Casino.find({}).sort({ createdAt: -1 });
+    const findRecent = await Casino.find({}).sort({ createdAt: -1 }).limit(7);
 
     res
       .status(200)
@@ -179,6 +225,7 @@ app.post("/game_played", async (req, res) => {
       referral,
       chain,
       token,
+      token_price_convt,
       duplicate_id,
     } = req.body;
 
@@ -199,6 +246,8 @@ app.post("/game_played", async (req, res) => {
       referral: referral,
       chain: chain,
       token: token,
+      token_price_convt: token_price_convt,
+      duplicate_id: duplicate_id,
     });
     playedGame = await playedGame.save();
     if (playedGame)

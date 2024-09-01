@@ -12,6 +12,7 @@ const CasinoSchema = mongoose.Schema(
     referral: { type: String },
     chain: { type: String },
     token: { type: String },
+    token_price_convt: { type: Number },
     duplicate_id: { type: String },
   },
   { timestamps: true }
