@@ -145,6 +145,9 @@ app.get("/leader_board", async (req, res) => {
       {
         $sort: { totalWinnings: -1 },
       },
+      {
+        $limit: 6
+      }
     ]);
 
     res.status(200).json({
