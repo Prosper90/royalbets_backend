@@ -102,11 +102,11 @@ app.get("/recent_plays", async (req, res) => {
 app.get("/leader_board", async (req, res) => {
   try {
     const leaderboard = await Casino.aggregate([
-      {
-        $match: {
-          is_Win: true, // Only consider winning games
-        },
-      },
+      // {
+      //   $match: {
+      //     is_Win: true, // Only consider winning games
+      //   },
+      // },
       {
         $addFields: {
           convertedPayout: {
@@ -146,8 +146,8 @@ app.get("/leader_board", async (req, res) => {
         $sort: { totalWinnings: -1 },
       },
       {
-        $limit: 6
-      }
+        $limit: 6,
+      },
     ]);
 
     res.status(200).json({
