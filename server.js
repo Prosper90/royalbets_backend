@@ -3,12 +3,14 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const Casino = require("./models/CasinoSchema");
 const http = require("http");
-const { requireAuth } = require("./utils/authmiddleware");
+const auth = require("./routes/auth");
+const bet = require("./routes/bet");
+const info = require("./routes/info");
+const walletsroute = require("./routes/wallet");
+
 const Transaction = require("./models/Transaction");
 const User = require("./models/User");
-const jwt = require("jsonwebtoken");
 const CoinpaymentsIPNError = require("coinpayments-ipn/lib/error");
 const { verify } = require("coinpayments-ipn");
 
@@ -16,7 +18,7 @@ const { ethers, parseUnits } = require("ethers");
 
 // Simulate blockchain network and wallet
 const provider = new ethers.JsonRpcProvider(process.env.PROVIDER); // Replace with your provider
-const wallet = new ethers.Wallet(process.env.PRIVATEKEY, provider);
+// const wallet = new ethers.Wallet(process.env.PRIVATEKEY, provider);
 
 const {
   generateDepositAddressCoinPayment,
@@ -34,7 +36,6 @@ const {
 const WAValidator = require("multicoin-address-validator"); // You'll need to install this package
 const { makecall } = require("./utils/makeRequest");
 const { throws } = require("assert");
-const RecentPlays = require("./models/RecentPlays");
 
 const app = express();
 const server = http.createServer(app);
@@ -52,567 +53,17 @@ app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cors());
 
-//check registered username
-app.get("/check_username/:username", async (req, res) => {
-  try {
-    const { username } = req.params;
-    // Check if user exists
-    let user = await User.findOne({ username: username.toLowerCase() });
-    if (user) {
-      return res.status(401).json({ status: false, data: false });
-    }
-
-    res.status(200).json({ status: true, data: true });
-  } catch (error) {
-    console.log(error, "catching thingses");
-    res.status(400).json({ status: false, message: "something went wrong" });
-  }
-});
-
-//check if user has registered
-app.get("/check_user/:address", async (req, res) => {
-  try {
-    const { address } = req.params;
-    // Check if user exists
-    let user = await User.findOne({ address: address.toLowerCase() });
-    if (!user) {
-      return res.status(401).json({ status: false, data: false });
-    }
-
-    res.status(200).json({ status: true, data: true });
-  } catch (error) {
-    res.status(400).json({ status: false, message: "something went wrong" });
-  }
-});
-
-app.get("/recent_plays", async (req, res) => {
-  try {
-    const findRecent = await RecentPlays.find({})
-      .sort({ createdAt: -1 })
-      .limit(7);
-
-    res
-      .status(200)
-      .json({ status: true, data: findRecent, message: "Welcome to the API" });
-  } catch (error) {
-    res.status(400).json({ status: false, message: "something went wrong" });
-  }
-});
-
-app.get("/leader_board", async (req, res) => {
-  try {
-    const leaderboard = await Casino.aggregate([
-      // {
-      //   $match: {
-      //     is_Win: true, // Only consider winning games
-      //   },
-      // },
-      {
-        $addFields: {
-          convertedPayout: {
-            $cond: {
-              if: { $eq: ["$chain", "wallet"] },
-              then: "$payout",
-              else: { $multiply: ["$payout", "$token_price_convt"] },
-            },
-          },
-          convertedAmountPlayed: {
-            $cond: {
-              if: { $eq: ["$chain", "wallet"] },
-              then: "$amount_played",
-              else: { $multiply: ["$amount_played", "$token_price_convt"] },
-            },
-          },
-        },
-      },
-      {
-        $group: {
-          _id: "$player",
-          totalWinnings: { $sum: "$convertedPayout" },
-          totalAmountPlayed: { $sum: "$convertedAmountPlayed" },
-          gamesPlayed: { $sum: 1 },
-        },
-      },
-      {
-        $project: {
-          player: "$_id",
-          totalWinnings: 1,
-          totalAmountPlayed: 1,
-          gamesPlayed: 1,
-          _id: 0,
-        },
-      },
-      {
-        $sort: { totalWinnings: -1 },
-      },
-      {
-        $limit: 6,
-      },
-    ]);
-
-    res.status(200).json({
-      status: true,
-      data: leaderboard,
-      message: "Leaderboard retrieved successfully",
-    });
-  } catch (error) {
-    res.status(400).json({ status: false, message: "something went wrong" });
-  }
-});
-
-app.get("/recent_plays_win", async (req, res) => {
-  try {
-    const findRecent = await Casino.find({}).sort({ createdAt: -1 }).limit(7);
-
-    res
-      .status(200)
-      .json({ status: true, data: findRecent, message: "Welcome to the API" });
-  } catch (error) {
-    res.status(400).json({ status: false, message: "something went wrong" });
-  }
-});
-
-app.post("/game_recent", async (req, res) => {
-  try {
-    const {
-      type,
-      wallet,
-      is_win,
-      amount_played,
-      payout,
-      player,
-      chain,
-      duplicate_id,
-    } = req.body;
-
-    const findDuplicate = await RecentPlays.findOne({
-      duplicate_id: duplicate_id,
-    });
-    if (findDuplicate) {
-      return res
-        .status(201)
-        .json({ status: false, message: "duplaicate data" });
-    }
-
-    let recentGame = new RecentPlays({
-      type: type,
-      wallet: wallet,
-      is_Win: is_win,
-      amount_played: amount_played,
-      payout: payout,
-      player: player,
-      chain: chain,
-      duplicate_id: duplicate_id,
-    });
-    recentGame = await recentGame.save();
-    if (recentGame)
-      return res.status(201).json({
-        status: true,
-        data: recentGame,
-        message: "data entered successfully",
-      });
-  } catch (error) {
-    console.log(error);
-  }
-});
-
-app.post("/game_played", async (req, res) => {
-  try {
-    const {
-      type,
-      wallet,
-      is_win,
-      amount_played,
-      payout,
-      player,
-      referral,
-      chain,
-      token,
-      token_price_convt,
-      duplicate_id,
-    } = req.body;
-
-    const findDuplicate = await Casino.findOne({ duplicate_id: duplicate_id });
-    if (findDuplicate) {
-      return res
-        .status(201)
-        .json({ status: false, message: "duplaicate data" });
-    }
-
-    let playedGame = new Casino({
-      type: type,
-      wallet: wallet,
-      is_Win: is_win,
-      amount_played: amount_played,
-      payout: payout,
-      player: player,
-      referral: referral,
-      chain: chain,
-      token: token,
-      token_price_convt: token_price_convt,
-      duplicate_id: duplicate_id,
-    });
-    playedGame = await playedGame.save();
-    if (playedGame)
-      return res.status(201).json({
-        status: true,
-        data: playedGame,
-        message: "data entered successfully",
-      });
-  } catch (error) {
-    console.log(error);
-  }
-});
-
-//connect like login give them jwt session
-app.post("/account_signin_signup", async (req, res) => {
-  try {
-    const { address, username } = req.body;
-
-    if (!address) {
-      return res.status(400).json({ error: "Missing required field" });
-    }
-
-    // Check if user exists
-    let user = await User.findOne({ address: address.toLowerCase() });
-
-    if (!user) {
-      // Create new user if not found
-      user = new User({
-        address: address.toLowerCase(),
-        username: username,
-        balance: 0, // Set initial balance
-      });
-      await user.save();
-    }
-
-    // Create JWT token
-    const token = jwt.sign(
-      { userId: user._id, address: user.address },
-      process.env.JWT_SECRET,
-      { expiresIn: "24h" }
-    );
-
-    res.status(200).json({
-      message: user.username
-        ? "User signed in successfully"
-        : "New user created successfully",
-      token,
-      user: {
-        username: user.username,
-        balance: user.balance,
-      },
-    });
-  } catch (error) {
-    console.error("Error in account_signin_signup:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-//verify address
-app.get(
-  "/verify_address/:address/:chain/:asset",
-  requireAuth,
-  async (req, res, next) => {
-    try {
-      const { address, chain, asset } = req.params;
-
-      if (!address || !chain) {
-        return res
-          .status(400)
-          .json({ error: "Address and chain type are required" });
-      }
-
-      let isValid = false;
-      let message = "";
-
-      switch (chain.toLowerCase()) {
-        case "btc":
-          isValid = WAValidator.validate(address, "BTC");
-          message = isValid ? "Valid BTC address" : "Invalid BTC address";
-          break;
-
-        case "sol":
-          isValid = WAValidator.validate(address, "SOL");
-          message = isValid ? "Valid SOL address" : "Invalid SOL address";
-          break;
-
-        case "evm":
-          isValid = isValidEVMAddress(address);
-          message = isValid ? "Valid EVM address" : "Invalid EVM address";
-          break;
-
-        case "tron":
-          isValid = isValidTronAddress(address);
-          message = isValid ? "Valid TRON address" : "Invalid TRON address";
-          break;
-
-        default:
-          return res.status(400).json({ error: "Unsupported chain type" });
-      }
-
-      if (!isValid) {
-        return res
-          .status(401)
-          .json({ status: false, message: "Address not correct" });
-      }
-
-      const apiUrl = `https://min-api.cryptocompare.com/data/price?fsym=${asset}&tsyms=USD`;
-      const headers = {
-        "Content-Type": "application/json",
-      };
-      const response = await makecall(apiUrl, {}, headers, "get", next);
-
-      if (response.Response === "Error") {
-        throw new Error(response.Message);
-      }
-
-      const data = response.USD;
-
-      res.status(200).json({ status: true, data: isValid, price: data });
-    } catch (error) {
-      console.error("Error in verify_address route:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  }
-);
-
-//deposit
-app.post("/deposit", requireAuth, async (req, res) => {
-  try {
-    const { asset, current_price } = req.body;
-    if (!asset) {
-      return res
-        .status(401)
-        .json({ status: false, message: "asset body is required" });
-    }
-    const getAddress = await generateDepositAddressCoinPayment(asset);
-
-    const tx = await new Transaction({
-      txtype: "deposit",
-      asset: asset,
-      amount: 0,
-      current_price: current_price,
-      status: "pending",
-      address_from: "",
-      address_to: getAddress?.address,
-      owner: req.user._id,
-    });
-
-    await tx.save();
-
-    res
-      .status(200)
-      .json({ status: true, type: asset, address: getAddress?.address });
-  } catch (error) {
-    console.log(error, "in error");
-    res.status(500).json({ status: false, message: "500 error" });
-  }
-});
-
-//withdraw
-app.post("/withdraw", requireAuth, async (req, res) => {
-  try {
-    const { asset, address, amount, convert_price } = req.body;
-    if (!asset || !address || amount) {
-      return res
-        .status(401)
-        .json({ status: false, message: "req body is required" });
-    }
-
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res
-        .status(401)
-        .json({ status: false, message: "Account doesnt exist" });
-    }
-
-    if (amount * convert_price > user.balance) {
-      return res
-        .status(401)
-        .json({ status: false, message: "Insufficient funds" });
-    }
-
-    await TransferCryptoCoinPayment(asset, address, amount);
-
-    const tx = await new Transaction({
-      txtype: "withdrawal",
-      asset: asset,
-      amount: amount,
-      current_price: convert_price,
-      status: "pending",
-      address_from: "",
-      address_to: address,
-      owner: req.user._id,
-    });
-
-    await tx.save();
-
-    res.status(200).json({ status: true, message: "withdrawal successfull" });
-  } catch (error) {
-    res.status(500).json({ status: false, message: "500 error" });
-  }
-});
-
-//Play games
-app.post("/place_bet", requireAuth, async (req, res) => {
-  try {
-    const { gameType, selection, payout, referral, betAmount, feeReceiver } =
-      req.body;
-    let user = req.user; // Assuming requireAuth middleware attaches user to req
-
-    const safeBetAmount = parseFloat(betAmount);
-    const minimumBetAmount = minimumBet;
-    if (safeBetAmount < minimumBetAmount) {
-      return res
-        .status(400)
-        .json({ status: false, message: "Bet amount is below the minimum" });
-    }
-
-    if (user.balance < safeBetAmount) {
-      return res
-        .status(400)
-        .json({ status: false, message: "Insufficient balance" });
-    }
-
-    const houseCharge = (safeBetAmount * houseChargePercentage) / 100;
-    // Deduct bet amount from user's balance
-    // console.log(
-    //   user.balance,
-    //   typeof user.balance,
-    //   safeBetAmount,
-    //   parseFloat(user.balance) - safeBetAmount,
-    //   houseCharge,
-    //   typeof safeBetAmount,
-    //   typeof houseCharge,
-    //   safeBetAmount + houseCharge,
-    //   "just checking why things are not working"
-    // );
-    user.balance = parseFloat(user.balance) - (safeBetAmount + houseCharge);
-    await user.save();
-
-    // Simulate VRF by generating a random number
-    const randomNumber = getRandomNumber(100);
-
-    let win = false;
-    switch (gameType) {
-      case "dice":
-        win = selection === (randomNumber % 6) + 1;
-        break;
-      case "flip":
-        win = selection === randomNumber % 2;
-        break;
-      case "slot":
-        win = selection === randomNumber % 3;
-        break;
-      default:
-        return res
-          .status(400)
-          .json({ status: false, message: "Invalid game type" });
-    }
-
-    let amountWon = 0;
-    if (win) {
-      const referralCommission = safeRound(
-        (payout * referralCommissionPercentage) / 100
-      );
-      const feeReceiverAmount = safeRound(
-        (payout * feeReceiverPercentage) / 100
-      );
-      // Transfer to house (fee taker)
-      console.log(`Transferring ${houseCharge} to house`);
-      amountWon =
-        payout -
-        safeRound(feeReceiverAmount - referralCommission) -
-        houseCharge;
-
-      // Simulate transfers
-      if (referral !== "0x0000000000000000000000000000000000000000") {
-        // Implement your transfer logic here
-        console.log(
-          `Transferring ${referralCommission} to referral: ${referral}`
-        );
-
-        const valTr = safeToBigInt(referralCommission);
-        await wallet.sendTransaction({
-          to: referral,
-          value: valTr,
-        });
-      }
-      if (feeReceiver !== "0x0000000000000000000000000000000000000000") {
-        // Implement your transfer logic here
-        console.log(
-          `Transferring ${feeReceiverAmount} to feeReceiver: ${feeReceiver}`
-        );
-        const valTr = safeToBigInt(feeReceiverAmount);
-
-        await wallet.sendTransaction({
-          to: feeReceiver,
-          value: valTr,
-        });
-      }
-
-      // Update user's balance with winnings
-      const updateBalance = parseFloat(user.balance) + amountWon;
-      user.balance = updateBalance;
-      await user.save();
-    } else {
-      const feeAmount = safeRound(
-        (safeBetAmount * feeReceiverPercentage) / 100
-      );
-      if (feeReceiver) {
-        // Implement your transfer logic here
-        console.log(`Transferring ${feeAmount} to feeReceiver: ${feeReceiver}`);
-      }
-    }
-
-    // console.log(
-    //   "amountwon",
-    //   amountWon,
-    //   "amount played",
-    //   betAmount,
-    //   "payout",
-    //   payout,
-    //   "balance",
-    //   user.balance,
-    //   "type of balance",
-    //   typeof user.balance,
-    //   "calc",
-    //   safeRound(parseFloat(user.balance) + amountWon)
-    // );
-    res.status(200).json({
-      status: true,
-      win,
-      user: {
-        username: user.username,
-        balance: user.balance,
-      },
-    });
-  } catch (error) {
-    console.error("Error in place-bet route:", error);
-
-    // Attempt to refund user
-    let user;
-    try {
-      user = req.user;
-      const refundAmount = req.body.betAmount;
-      user.balance = user.balance + refundAmount;
-      await user.save();
-      console.log(`Refunded ${refundAmount} to user ${user._id}`);
-    } catch (refundError) {
-      console.error("Error while attempting refund:", refundError);
-    }
-
-    res.status(500).json({
-      status: false,
-      user: {
-        username: user.username,
-        balance: user.balance,
-      },
-      message: "Internal server error",
-    });
-  }
-});
+app.use("/auth", auth);
+app.use("/bet", bet);
+app.use("/info", info);
+app.use("/info", info);
+app.use("/info", info);
+app.use("/info", info);
+app.use("/info", info);
+app.use("/info", info);
+app.use("/info", info);
+app.use("/wallet", walletsroute);
+app.use("/wallet", walletsroute);
 
 //Webhook
 app.post("/handle_webhook", async (req, res) => {
@@ -650,7 +101,7 @@ app.post("/handle_webhook", async (req, res) => {
         address_to: req.body.address,
       });
 
-      console.log(pendingDeposit, "checking the pending deposit");
+      // console.log(pendingDeposit, "checking the pending deposit");
 
       if (pendingDeposit && req.body.status !== "100") {
         throw new Error("This deposit has not been completed");
@@ -667,7 +118,7 @@ app.post("/handle_webhook", async (req, res) => {
       //Convert amount to Dollar
       const amountToRecieveInDollars = req.body.fiat_amount;
 
-      console.log(amountToRecieveInDollars, "Amount to recieve in dollars");
+      // console.log(amountToRecieveInDollars, "Amount to recieve in dollars");
 
       // update transaction and transfer funds to the required user
       await Transaction.findOneAndUpdate(
@@ -676,20 +127,9 @@ app.post("/handle_webhook", async (req, res) => {
         { new: true }
       );
 
-      //credit user
-      // await User.findOneAndUpdate(
-      //   { _id: pendingDeposit.owner },
-      //   {
-      //     $inc: { balance: amountToRecieveInDollars }, // increment the balance
-      //   },
-      //   { new: true }
-      // );
-
       let user = await User.findById({ _id: pendingDeposit.owner });
 
-      console.log(user, "user checking if its correct");
       const updateBalance = safeRound(user.balance) + amountToRecieveInDollars;
-      // console.log(updateBalance, "checking update balanced");
       user.balance = updateBalance;
       await user.save();
 
@@ -704,15 +144,13 @@ app.post("/handle_webhook", async (req, res) => {
         address_to: req.body.address,
       });
 
-      console.log(pendingWithdrawal, "checking for pending withdrawal");
       if (pendingWithdrawal && req.body.status !== 100) {
-        throw new Error("Deposit not complete");
+        throw new Error("withdrawal not complete");
       }
 
       //Convert amount to Dollar
       const amountToDeductInDollars = req.body.fiat_amount;
 
-      console.log(amountToDeductInDollars, "amount to deduct");
       // update transaction and transfer funds to the required user
       await Transaction.findOneAndUpdate(
         { _id: pendingWithdrawal._id },
@@ -720,21 +158,11 @@ app.post("/handle_webhook", async (req, res) => {
         { new: true }
       );
 
-      //credit user
-      // await User.findOneAndUpdate(
-      //   { _id: pendingWithdrawal.owner },
-      //   {
-      //     $inc: { balance: amountToDeductInDollars }, // increment the balance
-      //   },
-      //   { new: true }
-      // );
       let user = await User.findById({ _id: pendingDeposit.owner });
 
-      console.log(user, "checking if the user is correct");
       const updateBalance = safeRound(
         parseFloat(user.balance) - amountToDeductInDollars
       );
-      // console.log(updateBalance, "checking update balanced");
       user.balance = updateBalance;
       await user.save();
 

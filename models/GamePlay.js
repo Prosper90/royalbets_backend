@@ -1,7 +1,7 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
 
-const RecentSchema = mongoose.Schema(
+const GamePlaysSchema = mongoose.Schema(
   {
     type: { type: String }, //the type of game played
     wallet: { type: String }, //type local and live
@@ -11,17 +11,19 @@ const RecentSchema = mongoose.Schema(
     player: { type: String },
     referral: { type: String },
     chain: { type: String },
+    token: { type: String },
+    token_price_convt: { type: Number },
     duplicate_id: { type: String },
   },
   { timestamps: true }
 );
 
-RecentSchema.virtual("id").get(function () {
+GamePlaysSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 
-RecentSchema.set("toJSON", {
+GamePlaysSchema.set("toJSON", {
   virtuals: true,
 });
 
-module.exports = mongoose.model("Recent", RecentSchema);
+module.exports = mongoose.model("GamePlays", GamePlaysSchema);
