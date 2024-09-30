@@ -120,6 +120,7 @@ exports.PlaceBet = async (req, res) => {
     res.status(200).json({
       status: true,
       win,
+      payout,
       user: {
         username: user.username,
         balance: user.balance,

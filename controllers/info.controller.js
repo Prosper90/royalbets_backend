@@ -70,7 +70,7 @@ exports.VerifyAddress = async (req, res, next) => {
 
 exports.RecentPlaysWin = async (req, res) => {
   try {
-    const findRecentWin = await GamePlays.find({ is_win: true })
+    const findRecentWin = await GamePlays.find({ is_Win: true })
       .sort({ createdAt: -1 })
       .limit(7);
 
@@ -192,6 +192,7 @@ exports.EnterGamePlayed = async (req, res) => {
       wallet,
       is_win,
       amount_played,
+      payout,
       player,
       referral,
       chain,
@@ -199,6 +200,8 @@ exports.EnterGamePlayed = async (req, res) => {
       token_price_convt,
       duplicate_id,
     } = req.body;
+
+    // console.log(req.body, "check 1");
 
     const findDuplicate = await GamePlays.findOne({
       duplicate_id: duplicate_id,
@@ -208,6 +211,7 @@ exports.EnterGamePlayed = async (req, res) => {
         .status(201)
         .json({ status: false, message: "duplaicate data" });
     }
+    // console.log("check 2");
 
     let playedGame = new GamePlays({
       type: type,
