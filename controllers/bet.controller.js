@@ -45,8 +45,8 @@ exports.PlaceBet = async (req, res) => {
     let win = false;
     switch (gameType) {
       case "dice":
-        win = selection === (randomNumber % 6) + 1;
-        const multiplier = (100 * 10000) / selection;
+        win = randomNumber < selection;
+        const multiplier = 98 / (selection - 1);
         payout = betAmount * multiplier;
         break;
       case "flip":
