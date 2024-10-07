@@ -108,6 +108,7 @@ exports.PlaceBet = async (req, res) => {
       user.balance = updateBalance;
       await user.save();
     } else {
+      payout = 0;
       const feeAmount = safeRound(
         (safeBetAmount * feeReceiverPercentage) / 100
       );
