@@ -137,7 +137,7 @@ exports.Leaderboard = async (req, res) => {
         },
       },
       {
-        $sort: { totalWinnings: -1 },
+        $sort: { totalWinnings: 1 },
       },
       {
         $limit: 6,
