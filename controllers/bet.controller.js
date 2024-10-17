@@ -94,6 +94,24 @@ exports.PlaceBet = async (req, res) => {
 
         break;
       }
+      case "dicetwo":
+        // Simulate the winning and losing logic for dicetwo
+        const winProbability = 50; // Retrieve from the game settings
+        const randomFraction = randomNumber / 100; // Simulating a fraction between 0 and 1
+
+        let result;
+        if (randomFraction < winProbability) {
+          result = selection; // User wins if the random fraction is less than winProbability
+        } else {
+          // Select a random number between 1 and 6 that is not the user's choice
+          do {
+            result = Math.floor(Math.random() * 6) + 1;
+          } while (result === selection);
+        }
+
+        win = result === selection;
+        payout = win ? betAmount * 6 : 0; // User wins 6x the bet amount if they win
+        break;
       default:
         return res
           .status(400)
