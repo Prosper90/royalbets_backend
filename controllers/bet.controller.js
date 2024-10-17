@@ -28,7 +28,7 @@ exports.PlaceBet = async (req, res) => {
         .json({ status: false, message: "Bet amount is below the minimum" });
     }
 
-    if (user.balance < safeBetAmount) {
+    if (user.balance < safeBetAmount || user.balance === 0) {
       return res
         .status(400)
         .json({ status: false, message: "Insufficient balance" });
@@ -57,6 +57,43 @@ exports.PlaceBet = async (req, res) => {
         win = selection === randomNumber % 3;
         payout = betAmount * 3;
         break;
+      case "rockPaperScissors": {
+        const options = ["rock", "paper", "scissors"];
+        const randomChoice =
+          options[Math.floor(Math.random() * options.length)];
+
+        // Determine the game result: win, lose, or tie
+        if (selection === randomChoice) {
+          win = null; // It's a tie
+        } else if (
+          (selection === "rock" && randomChoice === "scissors") ||
+          (selection === "scissors" && randomChoice === "paper") ||
+          (selection === "paper" && randomChoice === "rock")
+        ) {
+          win = true; // User wins
+          payout = betAmount * 2; // Example payout for winning, can adjust as needed
+        } else {
+          win = false; // User loses
+        }
+
+        // If the result is a tie, refund the bet amount
+        if (win === null) {
+          user.balance += safeBetAmount;
+          await user.save();
+          return res.status(200).json({
+            status: true,
+            result: randomChoice,
+            win: null,
+            message: "It's a tie!",
+            user: {
+              username: user.username,
+              balance: user.balance,
+            },
+          });
+        }
+
+        break;
+      }
       default:
         return res
           .status(400)
